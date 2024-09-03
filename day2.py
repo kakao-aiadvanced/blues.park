@@ -60,6 +60,7 @@ for doc in retrived_docs:
     relevance = retrieval_relevance_chain.invoke(f"""Is the context relevant to the user query?
 true or false in relevance variable.
 {parser.get_format_instructions()}
+
 query: {query}
 """)
     #print(relevance)
@@ -93,8 +94,10 @@ hallucination_chain = (
 hallucination = hallucination_chain.invoke(f"""Does the answer have hallucination?
 true or false in hallucination variable.
 {parser.get_format_instructions()}
-answer: {answer}
+
 query: {query}
+
+answer: {answer}
 """)
 
 print(f'Hallucination: {hallucination}')
