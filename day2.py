@@ -89,7 +89,7 @@ hallucination_chain = (
     | llm
     | parser
 )
-hallucination = hallucination_chain.invoke(f"""Is the answer affected by the hallucination?
+hallucination = hallucination_chain.invoke(f"""Does the answer have hallucination?
 true or false in hallucination variable.
 {parser.get_format_instructions()}
 answer: {answer}
