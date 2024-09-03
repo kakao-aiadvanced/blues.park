@@ -42,7 +42,8 @@ prompt = hub.pull("rlm/rag-prompt")
 def format_docs(docs):
     return "\n\n".join(doc.page_content for doc in docs)
 
-query = "agent memory"
+import sys
+query = sys.argv[1]
 retrived_docs = retriever.invoke(query)
 relevant_docs = []
 for doc in retrived_docs:
