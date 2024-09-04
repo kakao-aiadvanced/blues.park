@@ -117,7 +117,8 @@ def generate(state):
     prompt = ChatPromptTemplate.from_messages([
         ("system", """You are an assistant for question-answering tasks.
     Use the following pieces of retrieved context to answer the question. If you don't know the answer, just say that you don't know.
-    Use three sentences maximum and keep the answer concise"""),
+    Use three sentences maximum and keep the answer concise.
+    Give the sources of the context."""),
         ("human", "question: {question}\n\n context: {context} "),
     ])
     rag_chain = prompt | llm | StrOutputParser()
@@ -140,6 +141,16 @@ def grade_documents(state):
     print("---CHECK DOCUMENT RELEVANCE TO QUESTION---")
     question = state["question"]
     documents = state["documents"]
+
+    retrieval_grader = ChatPromptTemplate.from_messages([
+        ("system", """You are a grader assessing relevance
+    of a retrieved document to a user question. If the document contains keywords related to the user question,
+    grade it as relevant. It does not need to be a stringent test. The goal is to filter out erroneous retrievals. \n
+    Give a binary score 'yes' or 'no' score to indicate whether the document is relevant to the question. \n
+    Provide the binary score as a JSON with a single key 'score' and no premable or explanation.
+    """),
+        ("human", "question: {question}\n\n document: {document} "),
+    ]) | llm | JsonOutputParser()
 
     # Score each doc
     filtered_docs = []
@@ -352,4 +363,4 @@ inputs = {"question": sys.argv[1]}
 for output in app.stream(inputs):
     for key, value in output.items():
         pprint(f"Finished running: {key}:")
-pprint(value["generation"])
+print(value["generation"])
