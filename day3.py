@@ -99,6 +99,43 @@ def retrieve(state):
     return {"documents": documents, "question": question}
 
 
+def check_relevance(state):
+    print("---CHECK DOCUMENT RELEVANCE TO QUESTION---")
+    question = state["question"]
+    documents = state["documents"]
+    
+    retrieval_grader = ChatPromptTemplate.from_messages([
+        ("system", """You are a grader assessing relevance
+    of a retrieved document to a user question. If the document contains keywords related to the user question,
+    grade it as relevant. It does not need to be a stringent test. The goal is to filter out erroneous retrievals. \n
+    Give a binary score 'yes' or 'no' score to indicate whether the document is relevant to the question. \n
+    Provide the binary score as a JSON with a single key 'score' and no premable or explanation.
+    """),
+        ("human", "question: {question}\n\n document: {document} "),
+    ]) | llm | JsonOutputParser()
+
+    # Score each doc
+    filtered_docs = []
+    web_search = "No"
+    for d in documents:
+        score = retrieval_grader.invoke(
+            {"question": question, "document": d.page_content}
+        )
+        grade = score["score"]
+        # Document relevant
+        if grade.lower() == "yes":
+            print("---GRADE: DOCUMENT RELEVANT---")
+            filtered_docs.append(d)
+        # Document not relevant
+        else:
+            print("---GRADE: DOCUMENT NOT RELEVANT---")
+            # We do not include the document in filtered_docs
+            # We set a flag to indicate that we want to run web search
+            web_search = "Yes"
+            continue
+    return {"documents": filtered_docs, "question": question, "web_search": web_search}
+
+
 def generate(state):
     """
     Generate answer using RAG on retrieved documents
@@ -321,29 +358,29 @@ def grade_generation_v_documents_and_question(state):
 workflow = StateGraph(GraphState)
 
 # Define the nodes
-workflow.add_node("websearch", web_search)  # web search
-workflow.add_node("retrieve", retrieve)  # retrieve
-workflow.add_node("grade_documents", grade_documents)  # grade documents
-workflow.add_node("generate", generate)  # generatae
+workflow.add_node("websearch", web_search)
+workflow.add_node("retrieve", retrieve)
+workflow.add_node("check_relevance", check_relevance)
+workflow.add_node("generate", generate)
 # Build graph
-workflow.set_conditional_entry_point(
-    route_question,
-    {
-        "websearch": "websearch",
-        "vectorstore": "retrieve",
-    },
-)
-
-workflow.add_edge("retrieve", "grade_documents")
+workflow.set_entry_point("retrieve")
+workflow.add_edge("retrieve", "check_relevance")
 workflow.add_conditional_edges(
-    "grade_documents",
+    "check_relevance",
     decide_to_generate,
     {
         "websearch": "websearch",
         "generate": "generate",
     },
 )
-workflow.add_edge("websearch", "generate")
+workflow.add_conditional_edges(
+    "websearch",
+    decide_to_generate,
+    {
+        "websearch": END,
+        "generate": "generate",
+    },
+)
 workflow.add_conditional_edges(
     "generate",
     grade_generation_v_documents_and_question,
@@ -363,4 +400,4 @@ inputs = {"question": sys.argv[1]}
 for output in app.stream(inputs):
     for key, value in output.items():
         pprint(f"Finished running: {key}:")
-print(value["generation"])
+print(value.get("generation"))
